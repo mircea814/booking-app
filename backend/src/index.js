@@ -7,6 +7,7 @@ const port = process.env.PORT || 5000;
 
 // Import models
 const User = require('./models/user');
+const Role = require('./models/role');
 
 // Middleware
 app.use(cors());
@@ -64,6 +65,32 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
+app.post('/api/roles', async (req, res) => {
+  try {
+    console.log('Received user data:', req.body);
+    
+    if (!req.body.roleName || !req.body.status) {
+      return res.status(400).json({ 
+        error: 'roleName and status are required fields' 
+      });
+    }
+
+    const role = await Role.create({
+      role_name: req.body.roleName,
+      status: req.body.status
+    });
+
+    console.log('Role created successfully:', role.toJSON());
+    res.status(201).json(role);
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(400).json({ 
+      error: error.message,
+      details: error.errors?.map(e => e.message)
+    });
+  }
+});
+
 app.get('/api/users', async (req, res) => {
   try {
     const users = await User.findAll();
@@ -73,6 +100,60 @@ app.get('/api/users', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+app.put('/api/user/:id', async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Validate required fields
+    if (!req.body.firstname || !req.body.lastname) {
+      return res.status(400).json({ error: 'firstname and lastname are required' });
+    }
+
+    // Update the user
+    await user.update({
+      firstname: req.body.firstname,
+      lastname: req.body.lastname,
+    });
+
+    // Fetch the updated user
+    const updatedUser = await User.findByPk(req.params.id);
+    res.json(updatedUser);
+
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/user/:id', async (req, res) => {
+  try {
+    // Validate if id is provided
+    if (!req.params.id) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    const user = await User.findByPk(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    } 
+
+    await user.destroy();
+    res.status(200).json({ 
+      message: 'User deleted successfully',
+      deletedUserId: req.params.id 
+    });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete user',
+      details: error.message 
+    });
+  }
+}); 
 
 // Error handling middleware
 app.use((err, req, res, next) => {
