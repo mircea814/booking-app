@@ -51,7 +51,9 @@ app.post('/api/users', async (req, res) => {
     const user = await User.create({
       firstname: req.body.firstname,
       lastname: req.body.lastname,
-      email: req.body.email
+      email: req.body.email,
+      password: req.body.password,
+      username: req.body.username
     });
 
     console.log('User created successfully:', user.toJSON());
