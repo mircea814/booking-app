@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
@@ -41,19 +43,30 @@ app.get('/', (req, res) => {
 app.post('/api/users', async (req, res) => {
   try {
     console.log('Received user data:', req.body);
-    
-    if (!req.body.firstname || !req.body.lastname) {
+    if (!req.body.username || !req.body.password) {
       return res.status(400).json({ 
-        error: 'firstname and lastname are required fields' 
+        error: 'username and password are required fields' 
       });
     }
+      const existingUser=await User.findOne({
+        where:{
+          username:req.body.username
+        }
+      })
+      if(existingUser){
+        console.log('Username already exists', existingUser.toJSON());
+        return res.status(400).json({
+          error:'Username already exists'
+        })
+      }
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
     const user = await User.create({
       firstname: req.body.firstname,
       lastname: req.body.lastname,
       email: req.body.email,
-      password: req.body.password,
-      username: req.body.username
+      password: hashedPassword,
+      username: req.body.username,
     });
 
     console.log('User created successfully:', user.toJSON());
@@ -64,6 +77,40 @@ app.post('/api/users', async (req, res) => {
       error: error.message,
       details: error.errors?.map(e => e.message)
     });
+  }
+});
+
+app.post('/api/users/login', async (req, res) => {
+  try {
+    if (!req.body.username || !req.body.password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    const user = await User.findOne({
+      where: { username: req.body.username }
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: 'Username is incorrect' });
+    }
+
+    const passwordMatch = await bcrypt.compare(req.body.password, user.password);
+
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Password is incorrect' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      process.env.JWT_SECRET || 'your_jwt_secret', // use a strong secret in production!
+      { expiresIn: '1h' }
+    );
+    console.log('Token generated:', token);
+
+    res.status(200).json({ message: 'Login successful', user, token });
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({ error: 'An error occurred during login' });
   }
 });
 
@@ -167,3 +214,5 @@ app.use((err, req, res, next) => {
 app.listen(port, () => {
   console.log(`Server is running on port ${port} in ${process.env.NODE_ENV} mode`);
 }); 
+
+
